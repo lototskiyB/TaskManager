@@ -13,6 +13,7 @@ top_buttons = tk.Frame(root)
 top_buttons.pack(pady=5)
 
 form_visible = False   # 🔸 Чи показана форма
+is_edit_form = False   # 🔸 Чи показана форма редагування
 sort_visible = False   # 🔸 Чи показане сортування
 selected_task_id = None  # 🔸 ID вибраної задачі для редагування
 
@@ -59,29 +60,102 @@ for name in ["Назва", "Пріоритет", "Створено"]:
 
 # === Функція перемикання видимості форми ===
 def toggle_form():
-    global form_visible, sort_visible
+    global form_visible, sort_visible,is_edit_form,selected_task_id
     if sort_visible:
-        toggle_sort()  # 🔸 Якщо відкрито сортування — закрити
-    if form_visible:
-        form_frame.pack_forget()
-    else:
+        sort_visible = False
+        sort_frame.pack_forget()  # 🔸 Якщо відкрито сортування — закрити
+    if is_edit_form:
+        is_edit_form = False
+        selected_task_id = None
+        title_entry.delete(0, tk.END)
+        desc_entry.delete("1.0", tk.END)
+        priority_combo.set("")
         form_frame.pack(fill="x", pady=10)
+    else:
+        if form_visible:
+            is_edit_form = False
+            selected_task_id = None
+            title_entry.delete(0, tk.END)
+            desc_entry.delete("1.0", tk.END)
+            priority_combo.set("")
+            form_frame.pack_forget()
+        else:
+            is_edit_form = False
+            selected_task_id = None
+            title_entry.delete(0, tk.END)
+            desc_entry.delete("1.0", tk.END)
+            priority_combo.set("")  
+            form_frame.pack(fill="x", pady=10)
+    
     form_visible = not form_visible
 
 # === Функція перемикання панелі сортування ===
 def toggle_sort():
-    global sort_visible, form_visible
+    global sort_visible, form_visible,is_edit_form
     if form_visible:
-        toggle_form()  # 🔸 Якщо форма відкрита — закрити
+        if is_edit_form:
+            toggle_edit_form()  # 🔸 Якщо форма відкрита — закрити
+        else:
+            toggle_form()
+    else:
+        if is_edit_form:
+            toggle_edit_form()  
+
     if sort_visible:
         sort_frame.pack_forget()
     else:
         sort_frame.pack(fill="x", pady=10)
     sort_visible = not sort_visible
 
+def toggle_edit_form():
+    global selected_task_id, form_visible, sort_visible,is_edit_form
+
+   
+    # Закрити сортування, якщо воно було відкрите
+    if sort_visible:
+        sort_frame.pack_forget()
+        sort_visible = False
+    
+    if  is_edit_form:
+        # Закрити форму
+        form_visible = False
+        selected_task_id = None
+        title_entry.delete(0, tk.END)
+        desc_entry.delete("1.0", tk.END)
+        priority_combo.set("")
+        form_frame.pack_forget()
+    else:
+        if form_visible:
+            form_frame.pack_forget()
+            form_visible = False
+        else:
+        # Відкрити форму для створення
+            form_frame.pack(fill="x", pady=10)
+        selected_items = task_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Увага", "Виберіть задачу для редагування.")
+            return
+
+        form_frame.pack(fill="x", pady=10)
+        selected = selected_items[0]
+        values = task_tree.item(selected, 'values')
+        selected_task_id = int(values[0])
+        task = get_task_by_id(selected_task_id)
+
+        # Заповнити форму
+        title_entry.delete(0, tk.END)
+        title_entry.insert(0, task['title'])
+        desc_entry.delete("1.0", tk.END)
+        desc_entry.insert("1.0", task['description'])
+        priority_combo.set(task['priority'])
+
+    is_edit_form = not is_edit_form
 # === Кнопки у верхній панелі ===
-btn_add = tk.Button(top_buttons, text="Додати задачу", command=toggle_form)
+btn_add = tk.Button(top_buttons, text="Додати", command=toggle_form)
 btn_add.pack(side="left", padx=5)
+
+btn_edit = tk.Button(top_buttons, text="Редагувати", command= toggle_edit_form)
+btn_edit.pack(side="left", padx=5)
 
 btn_sort_toggle = tk.Button(top_buttons, text="Сортування", command=toggle_sort)
 btn_sort_toggle.pack(side="left", padx=5)
@@ -89,6 +163,8 @@ btn_sort_toggle.pack(side="left", padx=5)
 btn_delete = tk.Button(top_buttons, text="Видалити", command=lambda: delete_selected())
 btn_delete.pack(side="left", padx=5)
 
+btn_exit = tk.Button(top_buttons, text="Вихід", command=root.destroy)
+btn_exit.pack(side="right", padx=5)
 # === Додавання або оновлення задачі ===
 def submit_task():
     global selected_task_id
@@ -139,24 +215,21 @@ def delete_selected():
 
 # === Обробка вибору рядка для редагування ===
 def on_row_select(event):
-    global selected_task_id
+    global selected_task_id,is_edit_form,form_visible
     selected = task_tree.focus()
     if not selected:
         return
-    values = task_tree.item(selected, 'values')
-    selected_task_id = int(values[0])
+    if  is_edit_form:
+        values = task_tree.item(selected, 'values')
+        selected_task_id = int(values[0])
+        title_entry.delete(0, tk.END)
+        title_entry.insert(0, values[1])
+        priority_combo.set(values[2])
+        desc_entry.delete("1.0", tk.END)
+        task = get_task_by_id(selected_task_id)
+        desc_entry.insert("1.0", task['description'])
 
-    # 🔸 Заповнення форми значеннями задачі
-    title_entry.delete(0, tk.END)
-    title_entry.insert(0, values[1])
-    priority_combo.set(values[2])
-    desc_entry.delete("1.0", tk.END)
-
-    task = get_task_by_id(selected_task_id)
-    desc_entry.insert("1.0", task['description'])
-
-    if not form_visible:
-        toggle_form()
+    
 
 # 🔸 Прив’язка події вибору рядка
 task_tree.bind("<<TreeviewSelect>>", on_row_select)
